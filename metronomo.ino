@@ -1,14 +1,39 @@
+#include "Config.h"
+#include "Interfaz.h"
+#include "Visuals.h"
+
+unsigned long ultimoPulso = 0;
+bool ledEncendido = false;
+
 void setup() {
-  pinMode(13, OUTPUT);       // LED integrado
-  Serial.begin(9600);        // Iniciar comunicación serie
+    Serial.begin(9600);
+    setupInterfaz();
+    setupVisuals();
+    Serial.println("Metronomo listo con degradado.");
 }
 
 void loop() {
-  digitalWrite(13, HIGH);    // Encender LED
-  Serial.println("LED ON");
-  delay(1000);
+    int bpm = obtenerBPM();
+    unsigned long intervalo = 60000 / bpm;
+    unsigned long tiempoActual = millis();
 
-  digitalWrite(13, LOW);     // Apagar LED
-  Serial.println("LED OFF");
-  delay(1000);
+    // Comprobar si se pulsa el botón del encoder (SW)
+    if (botonPresionado()) {
+        Serial.println("Click en Encoder!");
+    }
+
+    // Lógica de parpadeo sin delay
+    // El LED estará encendido la mitad del intervalo y apagado la otra mitad
+    if (tiempoActual - ultimoPulso >= (intervalo / 2)) {
+        ultimoPulso = tiempoActual;
+        
+        if (!ledEncendido) {
+            actualizarColorLED(bpm); // Aquí se aplica tu degradado
+            ledEncendido = true;
+            Serial.println(bpm);
+        } else {
+            apagarLED();
+            ledEncendido = false;
+        }
+    }
 }
