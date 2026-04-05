@@ -13,24 +13,26 @@ void setup() {
 }
 
 void loop() {
+    // 1. Gestionar entradas
+    gestionarBoton(); // <--- Esta función ahora controla el reset por tiempo
     int bpm = obtenerBPM();
+    
+    // 2. Imprimir BPM solo si cambia (tu lógica anterior)
+    static int ultimoBPMVisible = 0;
+    if (bpm != ultimoBPMVisible) {
+        Serial.print("Tempo: "); Serial.println(bpm);
+        ultimoBPMVisible = bpm;
+    }
+
+    // 3. Lógica del Metrónomo (Parpadeo LED)
     unsigned long intervalo = 60000 / bpm;
     unsigned long tiempoActual = millis();
 
-    // Comprobar si se pulsa el botón del encoder (SW)
-    if (botonPresionado()) {
-        Serial.println("Click en Encoder!");
-    }
-
-    // Lógica de parpadeo sin delay
-    // El LED estará encendido la mitad del intervalo y apagado la otra mitad
     if (tiempoActual - ultimoPulso >= (intervalo / 2)) {
         ultimoPulso = tiempoActual;
-        
         if (!ledEncendido) {
-            actualizarColorLED(bpm); // Aquí se aplica tu degradado
+            actualizarColorLED(bpm);
             ledEncendido = true;
-            Serial.println(bpm);
         } else {
             apagarLED();
             ledEncendido = false;

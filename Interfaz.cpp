@@ -2,13 +2,16 @@
 #include "Config.h"
 
 volatile int bpmActual = 120;
-unsigned long ultimaPulsacion = 0;
-const int debounceDelay = 500; 
 
-// Máquina de estados: 0, 1 (derecha), -1 (izquierda)
+// Variables para el Encoder (Máquina de estados)
 const int8_t TABLA_ENCODER[] = {0, 1, -1, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, -1, 1, 0};
 static uint8_t estadoEncoder = 0;
-static int8_t contadorPasos = 0; // Para contar los 4 micro-pasos por clic
+static int8_t contadorPasos = 0;
+
+// Variables para el Botón (Reset 3 segundos)
+unsigned long tiempoInicioPulsacion = 0;
+bool pulsadoAnteriormente = false;
+const unsigned long TIEMPO_RESET = 3000; // 3000ms = 3 segundos
 
 void setupInterfaz() {
     pinMode(PIN_ENCODER_CLK, INPUT_PULLUP);
@@ -20,20 +23,14 @@ void setupInterfaz() {
 }
 
 void checkEncoder() {
-    // 1. Leemos los pines. 
-    // He invertido el orden de CLK y DT aquí para corregir el giro "al revés"
     estadoEncoder <<= 2;
     if (digitalRead(PIN_ENCODER_DT))  estadoEncoder |= 0x02; 
     if (digitalRead(PIN_ENCODER_CLK)) estadoEncoder |= 0x01;
     
-    // 2. Buscamos el movimiento en la tabla
     int8_t movimiento = TABLA_ENCODER[estadoEncoder & 0x0F];
     
     if (movimiento != 0) {
         contadorPasos += movimiento;
-
-        // 3. Solo cuando acumulamos 4 micro-pasos (un clic físico completo)
-        // actualizamos el BPM de 1 en 1.
         if (contadorPasos >= 4) {
             bpmActual++;
             contadorPasos = 0;
@@ -44,19 +41,35 @@ void checkEncoder() {
         }
     }
 
-    // 4. Límites
     if (bpmActual < MIN_BPM) bpmActual = MIN_BPM;
     if (bpmActual > MAX_BPM) bpmActual = MAX_BPM;
 }
 
-bool botonPresionado() {
-    if (digitalRead(PIN_ENCODER_SW) == LOW) {
-        if (millis() - ultimaPulsacion > debounceDelay) {
-            ultimaPulsacion = millis();
-            return true;
+void gestionarBoton() {
+    bool botonPulsado = (digitalRead(PIN_ENCODER_SW) == LOW);
+
+    // Detectamos el inicio de la pulsación
+    if (botonPulsado && !pulsadoAnteriormente) {
+        tiempoInicioPulsacion = millis();
+        pulsadoAnteriormente = true;
+    }
+
+    // Si soltamos el botón antes de los 3 segundos
+    if (!botonPulsado && pulsadoAnteriormente) {
+        pulsadoAnteriormente = false;
+    }
+
+    // Si se mantiene pulsado, comprobamos el tiempo
+    if (botonPulsado && pulsadoAnteriormente) {
+        if (millis() - tiempoInicioPulsacion >= TIEMPO_RESET) {
+            bpmActual = 120; // RESET
+            Serial.println(">>> RESET: 120 BPM <<<");
+            
+            // Esperar a que suelte el botón para no repetir el reset instantáneamente
+            while(digitalRead(PIN_ENCODER_SW) == LOW);
+            pulsadoAnteriormente = false;
         }
     }
-    return false;
 }
 
 int obtenerBPM() {

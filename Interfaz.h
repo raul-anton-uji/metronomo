@@ -6,6 +6,7 @@
 void setupInterfaz();
 void checkEncoder(); 
 int obtenerBPM();
-bool botonPresionado(); // <--- AÑADE ESTA LÍNEA AQUÍ
+void establecerBPM(int nuevoBpm); // Nueva: para poder resetear desde fuera si hiciera falta
+void gestionarBoton();           // Nueva: maneja la lógica de los 3 segundos
 
 #endif
