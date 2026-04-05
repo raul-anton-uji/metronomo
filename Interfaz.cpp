@@ -3,7 +3,7 @@
 
 volatile int bpmActual = 120;
 unsigned long ultimaPulsacion = 0;
-const int debounceDelay = 150; 
+const int debounceDelay = 500; 
 
 // Máquina de estados: 0, 1 (derecha), -1 (izquierda)
 const int8_t TABLA_ENCODER[] = {0, 1, -1, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, -1, 1, 0};
