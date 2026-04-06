@@ -2,10 +2,10 @@
 #include "Interfaz.h"
 #include "Visuals.h"
 
-unsigned long ultimoPulso = 0;
+unsigned long tiempoSiguienteCambio = 0; 
 bool ledEncendido = false;
 
-// Variables para control de refresco del LCD
+// Control de refresco
 int ultimoBPM = 0;
 String ultimoCompasStr = "";
 bool ultimoEstadoEjecucion = false;
@@ -16,37 +16,20 @@ void setup() {
     setupInterfaz();
     setupVisuals();
     actualizarPantalla();
+    tiempoSiguienteCambio = millis(); 
 }
 
 void loop() {
-    // 1. Siempre vigilar el Start/Stop
-    gestionarStartStop();
-    
-    // 2. Leer controles (bloqueados internamente si STOP)
-    gestionarBoton();
-    gestionarTapTempo();
-    gestionarCompas();
-    
+    unsigned long tiempoActual = millis();
     int bpm = obtenerBPM();
-    String compas = obtenerCompasActual();
     bool estadoActual = estaEjecutando();
 
-    // 3. Refrescar LCD si cambian datos O para limpiar notificaciones (cada 200ms)
-    if (bpm != ultimoBPM || compas != ultimoCompasStr || estadoActual != ultimoEstadoEjecucion || (millis() - ultimoRefrescoLCD > 200)) {
-        actualizarPantalla();
-        ultimoBPM = bpm;
-        ultimoCompasStr = compas;
-        ultimoEstadoEjecucion = estadoActual;
-        ultimoRefrescoLCD = millis();
-    }
-
-    // 4. Salida de Pulso (LED RGB)
     if (estadoActual) {
-        unsigned long tiempoActual = millis();
-        unsigned long intervalo = 60000 / bpm;
+        // Cálculo de alta precisión
+        unsigned long medioIntervalo = 30000UL / bpm; 
 
-        if (tiempoActual - ultimoPulso >= (intervalo / 2)) {
-            ultimoPulso = tiempoActual;
+        // PRIORIDAD 1: Cambio del LED (Momento crítico)
+        if (tiempoActual >= tiempoSiguienteCambio) {
             if (!ledEncendido) {
                 actualizarColorLED(bpm);
                 ledEncendido = true;
@@ -54,9 +37,41 @@ void loop() {
                 apagarLED();
                 ledEncendido = false;
             }
+            // Sincronía absoluta para evitar deriva
+            tiempoSiguienteCambio += medioIntervalo; 
+
+            // PRIORIDAD 2: El resto del código se ejecuta JUSTO después del pulso
+            // Esto garantiza que el LCD no interrumpa el inicio del siguiente pulso
+            gestionarStartStop();
+            gestionarBoton();
+            gestionarTapTempo();
+            gestionarCompas();
+
+            String compasStr = obtenerCompasActual();
+            
+            // Refresco inteligente: solo si cambia algo o han pasado 400ms
+            if (bpm != ultimoBPM || compasStr != ultimoCompasStr || estadoActual != ultimoEstadoEjecucion || (millis() - ultimoRefrescoLCD > 400)) {
+                actualizarPantalla();
+                ultimoBPM = bpm;
+                ultimoCompasStr = compasStr;
+                ultimoEstadoEjecucion = estadoActual;
+                ultimoRefrescoLCD = millis();
+            }
         }
     } else {
+        // Modo STANDBY: Respuesta rápida de controles
         apagarLED();
         ledEncendido = false;
+        tiempoSiguienteCambio = millis();
+        
+        gestionarStartStop();
+        gestionarBoton();
+        gestionarTapTempo();
+        gestionarCompas();
+        
+        if (millis() - ultimoRefrescoLCD > 200) {
+            actualizarPantalla();
+            ultimoRefrescoLCD = millis();
+        }
     }
 }
