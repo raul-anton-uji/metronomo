@@ -12,19 +12,21 @@ void setup() {
     setupInterfaz();
     setupVisuals();
     
+    Serial.println("===========================");
     Serial.println("  METRÓNOMO INICIADO PRO  ");
+    Serial.println("===========================");
 }
 
 void loop() {
-    // 1. Procesar Entradas
+    // Procesar Entradas
     gestionarBoton();     // Pin 4: Reset/Salto
     gestionarTapTempo();  // Pin 5: Tap Tempo
-    gestionarCompas();    // Pin 6: Compás
+    gestionarCompas();    // Pin 6: Compás (Cambia al soltar)
     
     int bpm = obtenerBPM();
     String compas = obtenerCompasActual();
 
-    // 2. Mostrar información si algo cambia
+    // Mostrar información si algo cambia (BPM o Compás)
     if (bpm != ultimoBPM || compas != ultimoCompasStr) {
         Serial.print("TEMPO: "); Serial.print(bpm);
         Serial.print(" BPM | COMPÁS: "); Serial.println(compas);
@@ -32,11 +34,10 @@ void loop() {
         ultimoCompasStr = compas;
     }
 
-    // 3. Lógica de Parpadeo (LED RGB)
+    // Lógica de Parpadeo del LED
     unsigned long tiempoActual = millis();
     unsigned long intervalo = 60000 / bpm;
 
-    // Parpadeo simétrico (encendido la mitad del intervalo)
     if (tiempoActual - ultimoPulso >= (intervalo / 2)) {
         ultimoPulso = tiempoActual;
         

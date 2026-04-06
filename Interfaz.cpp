@@ -11,7 +11,7 @@ static int8_t contadorPasos = 0;
 // --- Variables Botón Encoder (Pin 4: Reset/Salto) ---
 unsigned long tiempoInicioPulsacion = 0;
 bool pulsadoAnteriormente = false;
-const unsigned long TIEMPO_RESET = 2000;
+const unsigned long TIEMPO_RESET = 3000;
 const unsigned long DEBOUNCE_BOTON = 50;
 
 // --- Variables Tap Tempo (Pin 5) ---
@@ -24,7 +24,7 @@ const unsigned long DEBOUNCE_TAP = 150;
 // --- Variables Compás (Pin 6) ---
 const char* listaCompases[] = {"2/4", "3/4", "4/4"};
 int indiceCompas = 2; // Inicia en 4/4
-bool compasAnteriorEstado = false;
+bool compasPresionadoActualmente = false; // Estado para detectar el soltado
 unsigned long ultimoCambioCompas = 0;
 
 void setupInterfaz() {
@@ -40,7 +40,6 @@ void setupInterfaz() {
 
 void checkEncoder() {
     estadoEncoder <<= 2;
-    // Giro: CLK en bit alto, DT en bajo para que Derecha = ++
     if (digitalRead(PIN_ENCODER_CLK)) estadoEncoder |= 0x02; 
     if (digitalRead(PIN_ENCODER_DT))  estadoEncoder |= 0x01;
     
@@ -110,15 +109,25 @@ void gestionarTapTempo() {
 }
 
 void gestionarCompas() {
-    bool compasPulsado = (digitalRead(PIN_COMPAS) == LOW);
+    bool botonEstaPulsado = (digitalRead(PIN_COMPAS) == LOW);
     unsigned long ahora = millis();
 
-    if (compasPulsado && !compasAnteriorEstado && (ahora - ultimoCambioCompas > 200)) {
-        indiceCompas = (indiceCompas + 1) % 3;
-        Serial.print(">>> COMPÁS: "); Serial.println(listaCompases[indiceCompas]);
-        ultimoCambioCompas = ahora;
+    // 1. Si detectamos que se pulsa, simplemente marcamos que está "abajo"
+    if (botonEstaPulsado && !compasPresionadoActualmente) {
+        compasPresionadoActualmente = true;
     }
-    compasAnteriorEstado = compasPulsado;
+
+    // 2. SOLO cuando se suelta (boton HIGH) y estaba presionado, cambiamos el compás
+    if (!botonEstaPulsado && compasPresionadoActualmente) {
+        // Anti-rebote para el soltado
+        if (ahora - ultimoCambioCompas > 150) { 
+            indiceCompas = (indiceCompas + 1) % 3;
+            Serial.print(">>> COMPÁS CAMBIADO AL SOLTAR: "); 
+            Serial.println(listaCompases[indiceCompas]);
+            ultimoCambioCompas = ahora;
+        }
+        compasPresionadoActualmente = false;
+    }
 }
 
 int obtenerBPM() { return bpmActual; }
