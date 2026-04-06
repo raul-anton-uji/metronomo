@@ -16,6 +16,9 @@ const int PIN_ENCODER_SW  = 4;
 // Pin Tap Tempo 
 const int PIN_TAP_TEMPO   = 5; 
 
+// Pin cambio de compás
+const int PIN_COMPAS      = 6; 
+
 // Rangos
 const int MIN_BPM = 30;
 const int MAX_BPM = 280;

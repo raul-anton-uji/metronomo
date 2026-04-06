@@ -6,8 +6,10 @@
 void setupInterfaz();
 void checkEncoder(); 
 int obtenerBPM();
-void establecerBPM(int nuevoBpm); // Nueva: para poder resetear desde fuera si hiciera falta
-void gestionarBoton();           // Nueva: maneja la lógica de los 3 segundos
-void gestionarTapTempo(); // <--- Función nueva
+void establecerBPM(int nuevoBpm); // reset
+void gestionarBoton();           // lógica de los 2 segundos
+void gestionarTapTempo(); // lógica del Tap Tempo
+void gestionarCompas();      
+String obtenerCompasActual(); // mostrar compás actual
 
 #endif
