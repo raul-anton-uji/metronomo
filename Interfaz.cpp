@@ -11,7 +11,7 @@ static int8_t contadorPasos = 0;
 // Variables para el Botón
 unsigned long tiempoInicioPulsacion = 0;
 bool pulsadoAnteriormente = false;
-const unsigned long TIEMPO_RESET = 3000; // 3 segundos para reset
+const unsigned long TIEMPO_RESET = 2000; // 3 segundos para reset
 const unsigned long DEBOUNCE_MIN = 50;   // Tiempo mínimo para evitar ruido
 
 void setupInterfaz() {
@@ -25,8 +25,8 @@ void setupInterfaz() {
 
 void checkEncoder() {
     estadoEncoder <<= 2;
-    if (digitalRead(PIN_ENCODER_DT))  estadoEncoder |= 0x02; 
-    if (digitalRead(PIN_ENCODER_CLK)) estadoEncoder |= 0x01;
+    if (digitalRead(PIN_ENCODER_CLK))  estadoEncoder |= 0x02; 
+    if (digitalRead(PIN_ENCODER_DT)) estadoEncoder |= 0x01;
     
     int8_t movimiento = TABLA_ENCODER[estadoEncoder & 0x0F];
     
