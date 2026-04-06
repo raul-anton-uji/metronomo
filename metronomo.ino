@@ -5,7 +5,6 @@
 unsigned long tiempoSiguienteCambio = 0; 
 bool ledEncendido = false;
 
-// Control de refresco
 int ultimoBPM = 0;
 String ultimoCompasStr = "";
 bool ultimoEstadoEjecucion = false;
@@ -24,11 +23,16 @@ void loop() {
     int bpm = obtenerBPM();
     bool estadoActual = estaEjecutando();
 
+    // --- 1. LECTURA DE BOTONES (Rápida, no bloquea) ---
+    gestionarStartStop();
+    gestionarBoton();
+    gestionarTapTempo();
+    gestionarCompas();
+
+    // --- 2. GESTIÓN DEL PULSO (Prioridad Máxima) ---
     if (estadoActual) {
-        // Cálculo de alta precisión
         unsigned long medioIntervalo = 30000UL / bpm; 
 
-        // PRIORIDAD 1: Cambio del LED (Momento crítico)
         if (tiempoActual >= tiempoSiguienteCambio) {
             if (!ledEncendido) {
                 actualizarColorLED(bpm);
@@ -37,41 +41,35 @@ void loop() {
                 apagarLED();
                 ledEncendido = false;
             }
-            // Sincronía absoluta para evitar deriva
             tiempoSiguienteCambio += medioIntervalo; 
+        }
 
-            // PRIORIDAD 2: El resto del código se ejecuta JUSTO después del pulso
-            // Esto garantiza que el LCD no interrumpa el inicio del siguiente pulso
-            gestionarStartStop();
-            gestionarBoton();
-            gestionarTapTempo();
-            gestionarCompas();
-
+        // --- 3. ACTUALIZACIÓN INTELIGENTE DEL LCD (Evita el Jitter) ---
+        // Solo actualizamos el LCD si:
+        // A) Algo ha cambiado.
+        // B) Ha pasado suficiente tiempo desde el último refresco.
+        // C) Faltan más de 30ms para el próximo pulso (Ventana de seguridad).
+        
+        long tiempoHastaSiguiente = (long)tiempoSiguienteCambio - (long)millis();
+        
+        if (tiempoHastaSiguiente > 35) { // Solo si hay "hueco" suficiente
             String compasStr = obtenerCompasActual();
-            
-            // Refresco inteligente: solo si cambia algo o han pasado 400ms
-            if (bpm != ultimoBPM || compasStr != ultimoCompasStr || estadoActual != ultimoEstadoEjecucion || (millis() - ultimoRefrescoLCD > 400)) {
+            if (bpm != ultimoBPM || compasStr != ultimoCompasStr || estadoActual != ultimoEstadoEjecucion || (tiempoActual - ultimoRefrescoLCD > 400)) {
                 actualizarPantalla();
                 ultimoBPM = bpm;
                 ultimoCompasStr = compasStr;
                 ultimoEstadoEjecucion = estadoActual;
-                ultimoRefrescoLCD = millis();
+                ultimoRefrescoLCD = tiempoActual;
             }
         }
     } else {
-        // Modo STANDBY: Respuesta rápida de controles
+        // Si está parado, refresco normal
         apagarLED();
         ledEncendido = false;
-        tiempoSiguienteCambio = millis();
-        
-        gestionarStartStop();
-        gestionarBoton();
-        gestionarTapTempo();
-        gestionarCompas();
-        
-        if (millis() - ultimoRefrescoLCD > 200) {
+        if (tiempoActual - ultimoRefrescoLCD > 200) {
             actualizarPantalla();
-            ultimoRefrescoLCD = millis();
+            ultimoRefrescoLCD = tiempoActual;
         }
+        tiempoSiguienteCambio = tiempoActual; 
     }
 }
