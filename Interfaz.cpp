@@ -3,21 +3,29 @@
 
 volatile int bpmActual = 120;
 
-// Variables para el Encoder (Máquina de estados)
+// --- Variables Encoder ---
 const int8_t TABLA_ENCODER[] = {0, 1, -1, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, -1, 1, 0};
 static uint8_t estadoEncoder = 0;
 static int8_t contadorPasos = 0;
 
-// Variables para el Botón
+// --- Variables Botón Encoder (Pin 4) ---
 unsigned long tiempoInicioPulsacion = 0;
 bool pulsadoAnteriormente = false;
-const unsigned long TIEMPO_RESET = 2000; // 3 segundos para reset
-const unsigned long DEBOUNCE_MIN = 50;   // Tiempo mínimo para evitar ruido
+const unsigned long TIEMPO_RESET = 3000;
+const unsigned long DEBOUNCE_BOTON = 50;
+
+// --- Variables Tap Tempo (Pin 5) ---
+unsigned long ultimoTap = 0;
+unsigned long tiemposTap[4] = {0, 0, 0, 0};
+int indiceTap = 0;
+bool tapAnteriorEstado = false;
+const unsigned long DEBOUNCE_TAP = 150; // <--- Filtro para evitar rebotes en el Tap
 
 void setupInterfaz() {
     pinMode(PIN_ENCODER_CLK, INPUT_PULLUP);
     pinMode(PIN_ENCODER_DT, INPUT_PULLUP);
     pinMode(PIN_ENCODER_SW, INPUT_PULLUP);
+    pinMode(PIN_TAP_TEMPO, INPUT_PULLUP);
     
     attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_CLK), checkEncoder, CHANGE);
     attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_DT), checkEncoder, CHANGE);
@@ -25,68 +33,84 @@ void setupInterfaz() {
 
 void checkEncoder() {
     estadoEncoder <<= 2;
-    if (digitalRead(PIN_ENCODER_CLK))  estadoEncoder |= 0x02; 
-    if (digitalRead(PIN_ENCODER_DT)) estadoEncoder |= 0x01;
+    if (digitalRead(PIN_ENCODER_CLK)) estadoEncoder |= 0x02; 
+    if (digitalRead(PIN_ENCODER_DT))  estadoEncoder |= 0x01;
     
     int8_t movimiento = TABLA_ENCODER[estadoEncoder & 0x0F];
-    
     if (movimiento != 0) {
         contadorPasos += movimiento;
-        if (contadorPasos >= 4) {
-            bpmActual++;
-            contadorPasos = 0;
-        } 
-        else if (contadorPasos <= -4) {
-            bpmActual--;
-            contadorPasos = 0;
-        }
+        if (contadorPasos >= 4) { bpmActual++; contadorPasos = 0; } 
+        else if (contadorPasos <= -4) { bpmActual--; contadorPasos = 0; }
     }
-
-    // El giro mantiene sus límites normales (no circular)
     if (bpmActual < MIN_BPM) bpmActual = MIN_BPM;
     if (bpmActual > MAX_BPM) bpmActual = MAX_BPM;
 }
 
 void gestionarBoton() {
     bool botonPulsado = (digitalRead(PIN_ENCODER_SW) == LOW);
-    unsigned long duracion = 0;
 
-    // 1. Detectamos cuando se empieza a pulsar
+    // Inicio de pulsación
     if (botonPulsado && !pulsadoAnteriormente) {
         tiempoInicioPulsacion = millis();
         pulsadoAnteriormente = true;
     }
 
-    // 2. Detectamos cuando se SUELTA el botón
-    if (!botonPulsado && pulsadoAnteriormente) {
-        duracion = millis() - tiempoInicioPulsacion;
-        pulsadoAnteriormente = false;
-
-        // Si la pulsación fue corta (menor a 3s) pero válida (>50ms)
-        if (duracion < TIEMPO_RESET && duracion > DEBOUNCE_MIN) {
-            bpmActual += 30;
-            
-            // Lógica CIRCULAR: Si pasa del máximo, vuelve al mínimo
-            if (bpmActual > MAX_BPM) {
-                bpmActual = MIN_BPM;
-            }
-            Serial.print("Pulsación corta: +30 BPM. Ahora: "); Serial.println(bpmActual);
-        }
-    }
-
-    // 3. Detectamos si se alcanza el tiempo de RESET mientras sigue pulsado
+    // Lógica de RESET (3 segundos mantenido)
     if (botonPulsado && pulsadoAnteriormente) {
         if (millis() - tiempoInicioPulsacion >= TIEMPO_RESET) {
-            bpmActual = 120; // RESET
-            Serial.println(">>> RESET MANTENIDO: 120 BPM <<<");
+            bpmActual = 120;
+            Serial.println(">>> ACCIÓN: RESET A 120 BPM <<<"); // Aviso inmediato
             
-            // Bloqueamos hasta que suelte para no procesar una pulsación corta al soltar
-            while(digitalRead(PIN_ENCODER_SW) == LOW);
+            while(digitalRead(PIN_ENCODER_SW) == LOW); // Bloqueo hasta soltar
             pulsadoAnteriormente = false;
+            return;
+        }
+    }
+
+    // Lógica de SALTO +30 (Al soltar)
+    if (!botonPulsado && pulsadoAnteriormente) {
+        unsigned long duracion = millis() - tiempoInicioPulsacion;
+        pulsadoAnteriormente = false;
+        
+        if (duracion > DEBOUNCE_BOTON) {
+            bpmActual += 30;
+            if (bpmActual > MAX_BPM) bpmActual = MIN_BPM;
+            Serial.println(">>> ACCIÓN: SALTO +30 BPM <<<"); // Aviso inmediato
         }
     }
 }
 
-int obtenerBPM() {
-    return bpmActual;
+void gestionarTapTempo() {
+    bool tapPulsado = (digitalRead(PIN_TAP_TEMPO) == LOW);
+    unsigned long ahora = millis();
+
+    // Solo detectamos si se pulsa Y ha pasado el tiempo de debounce (filtro de rebotes)
+    if (tapPulsado && !tapAnteriorEstado && (ahora - ultimoTap > DEBOUNCE_TAP)) {
+        unsigned long diferencia = ahora - ultimoTap;
+
+        if (diferencia < 2000) { // Si el ritmo es menor a 2 segundos entre golpes
+            tiemposTap[indiceTap] = diferencia;
+            indiceTap = (indiceTap + 1) % 4;
+
+            unsigned long suma = 0;
+            int validos = 0;
+            for(int i=0; i<4; i++) {
+                if(tiemposTap[i] > 0) { suma += tiemposTap[i]; validos++; }
+            }
+            
+            if (validos > 0) {
+                bpmActual = 60000 / (suma / validos);
+                if (bpmActual < MIN_BPM) bpmActual = MIN_BPM;
+                if (bpmActual > MAX_BPM) bpmActual = MAX_BPM;
+            }
+        } else {
+            // Reiniciar promedios si se tarda mucho
+            for(int i=0; i<4; i++) tiemposTap[i] = 0;
+            indiceTap = 0;
+        }
+        ultimoTap = ahora;
+    }
+    tapAnteriorEstado = tapPulsado;
 }
+
+int obtenerBPM() { return bpmActual; }

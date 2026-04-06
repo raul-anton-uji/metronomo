@@ -9,9 +9,12 @@ const int PIN_LED_G = 10;
 const int PIN_LED_B = 11;
 
 // Pines Encoder
-const int PIN_ENCODER_CLK = 2; // Antes PIN_ENCODER_A
-const int PIN_ENCODER_DT  = 3; // Antes PIN_ENCODER_B
-const int PIN_ENCODER_SW  = 4; // El pulsador
+const int PIN_ENCODER_CLK = 2; 
+const int PIN_ENCODER_DT  = 3; 
+const int PIN_ENCODER_SW  = 4; 
+
+// Pin Tap Tempo 
+const int PIN_TAP_TEMPO   = 5; 
 
 // Rangos
 const int MIN_BPM = 30;
