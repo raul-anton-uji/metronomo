@@ -11,7 +11,7 @@ static int8_t contadorPasos = 0;
 // --- Variables Botón Encoder (Pin 4) ---
 unsigned long tiempoInicioPulsacion = 0;
 bool pulsadoAnteriormente = false;
-const unsigned long TIEMPO_RESET = 3000;
+const unsigned long TIEMPO_RESET = 2000;
 const unsigned long DEBOUNCE_BOTON = 50;
 
 // --- Variables Tap Tempo (Pin 5) ---

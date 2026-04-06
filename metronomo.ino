@@ -10,7 +10,7 @@ void setup() {
     Serial.begin(9600);
     setupInterfaz();
     setupVisuals();
-    Serial.println("--- Metrónomo Pro v2.0 ---");
+    Serial.println("--- Metrónomo ---");
     Serial.print("Tempo inicial: "); Serial.print(obtenerBPM()); Serial.println(" BPM");
 }
 
