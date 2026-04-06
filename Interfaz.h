@@ -13,5 +13,6 @@ void gestionarCompas();
 String obtenerCompasActual(); // mostrar compás actual
 void gestionarStartStop(); // lógica del Start/Stop 
 bool estaEjecutando(); // parar que el .ino ejecute lógica si está en Start
+void actualizarPantalla(); // actualizar LCD con BPM y compás
 
 #endif

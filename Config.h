@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <Arduino.h>
+#include <LiquidCrystal_I2C.h>
 
 // Pines LED RGB
 const int PIN_LED_R = 9;
@@ -25,5 +26,10 @@ const int PIN_START_STOP  = 7;
 // Rangos
 const int MIN_BPM = 30;
 const int MAX_BPM = 280;
+
+// Configuración LCD
+const int LCD_COLS = 20;
+const int LCD_FILAS = 4;
+const int LCD_ADDR = 0x27; // Cambiar a 0x3F si no enciende
 
 #endif
