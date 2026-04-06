@@ -11,42 +11,47 @@ void setup() {
     Serial.begin(9600);
     setupInterfaz();
     setupVisuals();
-    
     Serial.println("===========================");
-    Serial.println("  METRÓNOMO INICIADO PRO  ");
+    Serial.println("  METRÓNOMO PRO FINAL V5   ");
     Serial.println("===========================");
 }
 
 void loop() {
-    // Procesar Entradas
-    gestionarBoton();     // Pin 4: Reset/Salto
-    gestionarTapTempo();  // Pin 5: Tap Tempo
-    gestionarCompas();    // Pin 6: Compás (Cambia al soltar)
+    // 1. Siempre vigilar el Start/Stop
+    gestionarStartStop();
+    
+    // 2. Procesar el resto solo si está en ejecución
+    gestionarBoton();
+    gestionarTapTempo();
+    gestionarCompas();
     
     int bpm = obtenerBPM();
     String compas = obtenerCompasActual();
 
-    // Mostrar información si algo cambia (BPM o Compás)
+    // 3. Monitor serie (cambio de estado o BPM)
     if (bpm != ultimoBPM || compas != ultimoCompasStr) {
         Serial.print("TEMPO: "); Serial.print(bpm);
         Serial.print(" BPM | COMPÁS: "); Serial.println(compas);
-        ultimoBPM = bpm;
-        ultimoCompasStr = compas;
+        ultimoBPM = bpm; ultimoCompasStr = compas;
     }
 
-    // Lógica de Parpadeo del LED
-    unsigned long tiempoActual = millis();
-    unsigned long intervalo = 60000 / bpm;
+    // 4. Parpadeo del LED
+    if (estaEjecutando()) {
+        unsigned long tiempoActual = millis();
+        unsigned long intervalo = 60000 / bpm;
 
-    if (tiempoActual - ultimoPulso >= (intervalo / 2)) {
-        ultimoPulso = tiempoActual;
-        
-        if (!ledEncendido) {
-            actualizarColorLED(bpm);
-            ledEncendido = true;
-        } else {
-            apagarLED();
-            ledEncendido = false;
+        if (tiempoActual - ultimoPulso >= (intervalo / 2)) {
+            ultimoPulso = tiempoActual;
+            if (!ledEncendido) {
+                actualizarColorLED(bpm);
+                ledEncendido = true;
+            } else {
+                apagarLED();
+                ledEncendido = false;
+            }
         }
+    } else {
+        apagarLED();
+        ledEncendido = false;
     }
 }
