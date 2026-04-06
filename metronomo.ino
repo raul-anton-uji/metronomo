@@ -9,19 +9,20 @@ bool ledEncendido = false;
 int ultimoBPM = 0;
 String ultimoCompasStr = "";
 bool ultimoEstadoEjecucion = false;
+unsigned long ultimoRefrescoLCD = 0;
 
 void setup() {
     Serial.begin(9600);
     setupInterfaz();
     setupVisuals();
-    actualizarPantalla(); // Dibujo inicial
+    actualizarPantalla();
 }
 
 void loop() {
-    // 1. Siempre leer el botón de Start/Stop
+    // 1. Siempre vigilar el Start/Stop
     gestionarStartStop();
     
-    // 2. Leer el resto de controles
+    // 2. Leer controles (bloqueados internamente si STOP)
     gestionarBoton();
     gestionarTapTempo();
     gestionarCompas();
@@ -30,12 +31,13 @@ void loop() {
     String compas = obtenerCompasActual();
     bool estadoActual = estaEjecutando();
 
-    // 3. Refrescar LCD solo si algo ha cambiado
-    if (bpm != ultimoBPM || compas != ultimoCompasStr || estadoActual != ultimoEstadoEjecucion) {
+    // 3. Refrescar LCD si cambian datos O para limpiar notificaciones (cada 200ms)
+    if (bpm != ultimoBPM || compas != ultimoCompasStr || estadoActual != ultimoEstadoEjecucion || (millis() - ultimoRefrescoLCD > 200)) {
         actualizarPantalla();
         ultimoBPM = bpm;
         ultimoCompasStr = compas;
         ultimoEstadoEjecucion = estadoActual;
+        ultimoRefrescoLCD = millis();
     }
 
     // 4. Salida de Pulso (LED RGB)
@@ -54,7 +56,6 @@ void loop() {
             }
         }
     } else {
-        // En Stop forzamos LED apagado
         apagarLED();
         ledEncendido = false;
     }

@@ -2,18 +2,23 @@
 #include "Config.h"
 #include <LiquidCrystal_I2C.h>
 
-// Inicialización del objeto LCD (Dirección 0x27, 20 columnas, 4 filas)
-LiquidCrystal_I2C lcd(0x27, 20, 4);
+// Inicialización del LCD (Dirección 0x27, 20 columnas, 4 filas)
+LiquidCrystal_I2C lcd(0x27, 20, 4); 
 
 volatile int bpmActual = 120;
 bool ejecutando = true;
+
+// --- Variables de Notificación ---
+String mensajeNotificacion = "";
+unsigned long tiempoNotificacion = 0;
+bool resetYaEjecutado = false; // Bandera para evitar el salto de +30 tras un reset
 
 // --- Variables Encoder ---
 const int8_t TABLA_ENCODER[] = {0, 1, -1, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, -1, 1, 0};
 static uint8_t estadoEncoder = 0;
 static int8_t contadorPasos = 0;
 
-// --- Variables de Tiempo y Estado ---
+// --- Variables Botones ---
 unsigned long tiempoInicioPulsacion = 0;
 bool pulsadoAnteriormente = false;
 bool tapAnteriorEstado = false;
@@ -24,7 +29,7 @@ unsigned long ultimoCambioCompas = 0;
 unsigned long ultimoTap = 0;
 unsigned long tiemposTap[4] = {0, 0, 0, 0};
 int indiceTap = 0;
-int indiceCompas = 2; // 4/4 por defecto
+int indiceCompas = 2;
 const char* listaCompases[] = {"2/4", "3/4", "4/4"};
 
 void setupInterfaz() {
@@ -38,26 +43,24 @@ void setupInterfaz() {
     attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_CLK), checkEncoder, CHANGE);
     attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_DT), checkEncoder, CHANGE);
 
-    // Inicializar LCD
+    Wire.begin();
     lcd.init();
     lcd.backlight();
     lcd.clear();
     lcd.setCursor(0, 1);
     lcd.print("   METRONOMO PRO   ");
     lcd.setCursor(0, 2);
-    lcd.print("     INICIANDO...   ");
-    delay(1500);
+    lcd.print("    SISTEMA OK     ");
+    delay(1000);
     lcd.clear();
 }
 
 void checkEncoder() {
-    if (!ejecutando) return; // Bloqueo si está en STOP
-
+    if (!ejecutando) return;
     estadoEncoder <<= 2;
     if (digitalRead(PIN_ENCODER_CLK)) estadoEncoder |= 0x02; 
     if (digitalRead(PIN_ENCODER_DT))  estadoEncoder |= 0x01;
     int8_t movimiento = TABLA_ENCODER[estadoEncoder & 0x0F];
-    
     if (movimiento != 0) {
         contadorPasos += movimiento;
         if (contadorPasos >= 4) { bpmActual++; contadorPasos = 0; } 
@@ -80,27 +83,36 @@ void gestionarBoton() {
     if (!ejecutando) return; 
     bool botonPulsado = (digitalRead(PIN_ENCODER_SW) == LOW);
 
+    // Detección inicial de pulsación
     if (botonPulsado && !pulsadoAnteriormente) {
         tiempoInicioPulsacion = millis();
         pulsadoAnteriormente = true;
+        resetYaEjecutado = false; 
     }
 
-    if (botonPulsado && pulsadoAnteriormente) {
+    // Lógica de RESET INSTANTÁNEO (Mientras se mantiene pulsado)
+    if (botonPulsado && pulsadoAnteriormente && !resetYaEjecutado) {
         if (millis() - tiempoInicioPulsacion >= 3000) {
             bpmActual = 120;
-            Serial.println(">>> ACCIÓN: RESET A 120 BPM <<<");
-            while(digitalRead(PIN_ENCODER_SW) == LOW);
-            pulsadoAnteriormente = false;
+            mensajeNotificacion = "RESET: 120 BPM OK ";
+            tiempoNotificacion = millis();
+            resetYaEjecutado = true; // Marcamos que el reset ya se cumplió
+            Serial.println(">>> RESET 120 BPM <<<");
         }
     }
 
+    // Lógica al soltar el botón
     if (!botonPulsado && pulsadoAnteriormente) {
         unsigned long duracion = millis() - tiempoInicioPulsacion;
         pulsadoAnteriormente = false;
-        if (duracion > 50 && duracion < 3000) {
+
+        // Solo sumamos 30 si NO se llegó a activar el reset
+        if (!resetYaEjecutado && duracion > 50) {
             bpmActual += 30;
             if (bpmActual > MAX_BPM) bpmActual = MIN_BPM;
-            Serial.println(">>> ACCIÓN: SALTO +30 BPM <<<");
+            mensajeNotificacion = "SALTO: +30 BPM    ";
+            tiempoNotificacion = millis();
+            Serial.println(">>> SALTO +30 BPM <<<");
         }
     }
 }
@@ -141,27 +153,33 @@ void gestionarCompas() {
 }
 
 void actualizarPantalla() {
-    // Fila 1: Título y Estado
+    // Fila 0: Estado
     lcd.setCursor(0, 0);
     lcd.print("STATUS: ");
     lcd.print(ejecutando ? "RUNNING   " : "STOPPED   ");
 
-    // Fila 2: BPM (Grandes)
+    // Fila 1: Tempo
     lcd.setCursor(0, 1);
-    lcd.print("TEMPO: ");
+    lcd.print("TEMPO:  ");
     lcd.print(bpmActual);
     lcd.print(" BPM    ");
 
-    // Fila 3: Compas
+    // Fila 2: Compas
     lcd.setCursor(0, 2);
     lcd.print("TIME SIG: ");
     lcd.print(listaCompases[indiceCompas]);
     lcd.print("      ");
 
-    // Fila 4: Decoración
+    // Fila 3: Notificaciones Temporales
     lcd.setCursor(0, 3);
-    if (ejecutando) lcd.print("> > > BEAT ON < < < ");
-    else           lcd.print("--------------------");
+    if (mensajeNotificacion != "" && (millis() - tiempoNotificacion < 2000)) {
+        lcd.print(">> ");
+        lcd.print(mensajeNotificacion);
+    } else {
+        mensajeNotificacion = ""; 
+        if (ejecutando) lcd.print("> > > BEAT ON < < < ");
+        else           lcd.print("--- STANDBY ---     ");
+    }
 }
 
 bool estaEjecutando() { return ejecutando; }
