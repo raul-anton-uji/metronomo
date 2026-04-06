@@ -48,9 +48,9 @@ void setupInterfaz() {
     lcd.backlight();
     lcd.clear();
     lcd.setCursor(0, 1);
-    lcd.print("   METRONOMO PRO   ");
+    lcd.print("METRONOMO PAU y RAUL");
     lcd.setCursor(0, 2);
-    lcd.print("    SISTEMA OK     ");
+    lcd.print("     SISTEMA OK     ");
     delay(1000);
     lcd.clear();
 }
