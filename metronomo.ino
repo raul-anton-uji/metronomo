@@ -2,9 +2,9 @@
 #include "Interfaz.h"
 #include "Visuals.h"
 
-unsigned long tiempoSiguienteCambio = 0; 
+unsigned long tiempoSiguienteCambioMicros = 0; 
 bool ledEncendido = false;
-int contadorPulsos = 0; // Para saber en qué parte del compás estamos
+int contadorPulsos = 0;
 
 int ultimoBPM = 0;
 String ultimoCompasStr = "";
@@ -16,71 +16,72 @@ void setup() {
     setupInterfaz();
     setupVisuals();
     actualizarPantalla();
-    tiempoSiguienteCambio = millis(); 
+    tiempoSiguienteCambioMicros = micros(); 
 }
 
 void loop() {
-    unsigned long tiempoActual = millis();
+    unsigned long tiempoActualMicros = micros();
+    unsigned long tiempoActualMillis = millis(); // Para tareas lentas
     int bpm = obtenerBPM();
     bool estadoActual = estaEjecutando();
 
-    // 1. Controles siempre activos
+    // 1. Controles (Lectura ultra rápida)
     gestionarStartStop();
     gestionarBoton();
     gestionarTapTempo();
     gestionarCompas();
 
-    // 2. Gestión del Pulso + Sonido
+    // 2. Gestión del Pulso con precisión de microsegundos
     if (estadoActual) {
-        unsigned long medioIntervalo = 30000UL / bpm; 
+        // Calculamos el medio intervalo en microsegundos (30 millones / bpm)
+        unsigned long medioIntervaloMicros = 30000000UL / bpm; 
 
-        if (tiempoActual >= tiempoSiguienteCambio) {
+        if (tiempoActualMicros >= tiempoSiguienteCambioMicros) {
             if (!ledEncendido) {
-                // --- INICIO DEL PULSO (Sonido y Luz) ---
+                // --- PUNTO CRÍTICO DE SINCRONÍA ---
                 actualizarColorLED(bpm);
                 
                 int tiemposMax = obtenerTiemposPorCompas();
-                
                 if (contadorPulsos == 0) {
-                    // ACENTO: Tono más agudo (1500Hz) durante 40ms
-                    tone(PIN_BUZZER, 1500, 40); 
+                    tone(PIN_BUZZER, 1500, 30); // Acento
                 } else {
-                    // NORMAL: Tono estándar (1000Hz) durante 30ms
-                    tone(PIN_BUZZER, 1000, 30);
+                    tone(PIN_BUZZER, 1000, 20); // Normal
                 }
                 
                 contadorPulsos = (contadorPulsos + 1) % tiemposMax;
                 ledEncendido = true;
             } else {
-                // --- FIN DEL PULSO (Solo apagar luz) ---
                 apagarLED();
                 ledEncendido = false;
             }
-            tiempoSiguienteCambio += medioIntervalo; 
+            // Sincronía matemática perfecta
+            tiempoSiguienteCambioMicros += medioIntervaloMicros; 
         }
 
-        // 3. Ventana de seguridad para el LCD
-        long tiempoHastaSiguiente = (long)tiempoSiguienteCambio - (long)millis();
-        if (tiempoHastaSiguiente > 40) { // Un poco más de margen por el buzzer
+        // 3. Ventana de exclusión del LCD
+        // Solo permitimos LCD si faltan más de 40ms (40000us) para el próximo evento
+        long tiempoRestante = (long)tiempoSiguienteCambioMicros - (long)micros();
+        
+        if (tiempoRestante > 40000L) { 
             String compasStr = obtenerCompasActual();
-            if (bpm != ultimoBPM || compasStr != ultimoCompasStr || estadoActual != ultimoEstadoEjecucion || (tiempoActual - ultimoRefrescoLCD > 400)) {
+            if (bpm != ultimoBPM || compasStr != ultimoCompasStr || estadoActual != ultimoEstadoEjecucion || (tiempoActualMillis - ultimoRefrescoLCD > 400)) {
                 actualizarPantalla();
                 ultimoBPM = bpm;
                 ultimoCompasStr = compasStr;
                 ultimoEstadoEjecucion = estadoActual;
-                ultimoRefrescoLCD = tiempoActual;
+                ultimoRefrescoLCD = tiempoActualMillis;
             }
         }
     } else {
-        // En Stop
+        // Modo Standby
         apagarLED();
         noTone(PIN_BUZZER);
         ledEncendido = false;
-        contadorPulsos = 0; // Reiniciar compás al parar
-        if (tiempoActual - ultimoRefrescoLCD > 200) {
+        contadorPulsos = 0;
+        if (tiempoActualMillis - ultimoRefrescoLCD > 200) {
             actualizarPantalla();
-            ultimoRefrescoLCD = tiempoActual;
+            ultimoRefrescoLCD = tiempoActualMillis;
         }
-        tiempoSiguienteCambio = tiempoActual; 
+        tiempoSiguienteCambioMicros = micros(); 
     }
 }
