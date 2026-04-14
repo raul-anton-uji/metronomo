@@ -2,19 +2,23 @@
 #include "Config.h"
 #include <LiquidCrystal_I2C.h>
 
+// Inicialización del LCD (Asegúrate de que la dirección sea 0x27 o 0x3F)
 LiquidCrystal_I2C lcd(0x27, 20, 4); 
 
 volatile int bpmActual = 120;
 bool ejecutando = true;
 
+// --- Variables de Notificación ---
 String mensajeNotificacion = "";
 unsigned long tiempoNotificacion = 0;
 bool resetYaEjecutado = false; 
 
+// --- Variables Encoder ---
 const int8_t TABLA_ENCODER[] = {0, 1, -1, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, -1, 1, 0};
 static uint8_t estadoEncoder = 0;
 static int8_t contadorPasos = 0;
 
+// --- Variables Botones ---
 unsigned long tiempoInicioPulsacion = 0;
 bool pulsadoAnteriormente = false;
 bool tapAnteriorEstado = false;
@@ -24,7 +28,7 @@ bool ssPresionadoActualmente = false;
 unsigned long ultimoTap = 0;
 unsigned long tiemposTap[4] = {0, 0, 0, 0};
 int indiceTap = 0;
-int indiceCompas = 2; 
+int indiceCompas = 2; // Por defecto 4/4
 const char* listaCompases[] = {"2/4", "3/4", "4/4"};
 
 void setupInterfaz() {
@@ -35,19 +39,21 @@ void setupInterfaz() {
     pinMode(PIN_COMPAS, INPUT_PULLUP);
     pinMode(PIN_START_STOP, INPUT_PULLUP);
     pinMode(PIN_BUZZER, OUTPUT);
+    digitalWrite(PIN_BUZZER, LOW);
     
-    // Las interrupciones son vitales para no perder pasos del encoder
+    // Interrupciones para el Encoder (Vital para no perder pasos)
     attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_CLK), checkEncoder, CHANGE);
     attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_DT), checkEncoder, CHANGE);
 
     Wire.begin();
-    Wire.setClock(400000); // 400kHz para liberar al CPU lo antes posible
+    Wire.setClock(400000); // Bus I2C a 400kHz para reducir el tiempo de bloqueo
     lcd.init();
     lcd.backlight();
     lcd.clear();
     lcd.setCursor(0, 1);
-    lcd.print("  PRECISION CLOCK  ");
+    lcd.print("  ATOMIC PRECISION ");
     delay(1000);
+    lcd.clear();
 }
 
 void checkEncoder() {
@@ -141,36 +147,50 @@ void gestionarCompas() {
 }
 
 int obtenerTiemposPorCompas() {
-    if (indiceCompas == 0) return 2;
-    if (indiceCompas == 1) return 3;
-    return 4;
+    if (indiceCompas == 0) return 2; // 2/4
+    if (indiceCompas == 1) return 3; // 3/4
+    return 4;                        // 4/4
 }
 
-void actualizarPantalla() {
-    // Sobreescritura directa sin clear para evitar latencia de bus
-    lcd.setCursor(0, 0);
-    lcd.print("STATUS: ");
-    lcd.print(ejecutando ? "RUNNING   " : "STOPPED   ");
+// --- FUNCIONES DE PANTALLA (Refresco Fraccionado) ---
 
-    lcd.setCursor(0, 1);
-    lcd.print("TEMPO:  ");
-    lcd.print(bpmActual);
-    lcd.print(" BPM    "); 
+void actualizarPantallaCompleta() {
+    for(int i=0; i<4; i++) {
+        actualizarLineaLCD(i);
+    }
+}
 
-    lcd.setCursor(0, 2);
-    lcd.print("TIME SIG: ");
-    lcd.print(listaCompases[indiceCompas]);
-    lcd.print("      ");
-
-    lcd.setCursor(0, 3);
-    if (mensajeNotificacion != "" && (millis() - tiempoNotificacion < 2000)) {
-        lcd.print(">> ");
-        lcd.print(mensajeNotificacion);
-        lcd.print("   ");
-    } else {
-        mensajeNotificacion = ""; 
-        if (ejecutando) lcd.print("> > > BEAT ON < < < ");
-        else           lcd.print("--- STANDBY ---     ");
+void actualizarLineaLCD(int linea) {
+    switch (linea) {
+        case 0:
+            lcd.setCursor(0, 0);
+            lcd.print("STATUS: ");
+            lcd.print(ejecutando ? "RUNNING   " : "STOPPED   ");
+            break;
+        case 1:
+            lcd.setCursor(0, 1);
+            lcd.print("TEMPO:  ");
+            lcd.print(bpmActual);
+            lcd.print(" BPM    ");
+            break;
+        case 2:
+            lcd.setCursor(0, 2);
+            lcd.print("TIME SIG: ");
+            lcd.print(listaCompases[indiceCompas]);
+            lcd.print("      ");
+            break;
+        case 3:
+            lcd.setCursor(0, 3);
+            if (mensajeNotificacion != "" && (millis() - tiempoNotificacion < 2000)) {
+                lcd.print(">> ");
+                lcd.print(mensajeNotificacion);
+                lcd.print("   ");
+            } else {
+                mensajeNotificacion = ""; 
+                if (ejecutando) lcd.print("> > > BEAT ON < < < ");
+                else           lcd.print("--- STANDBY ---     ");
+            }
+            break;
     }
 }
 

@@ -2,7 +2,7 @@
 #include "Interfaz.h"
 #include "Visuals.h"
 
-unsigned long tiempoSiguienteCambioMicros = 0; 
+double tiempoSiguienteCambioMicros = 0; 
 bool ledEncendido = false;
 int contadorPulsos = 0;
 
@@ -10,78 +10,77 @@ int ultimoBPM = 0;
 String ultimoCompasStr = "";
 bool ultimoEstadoEjecucion = false;
 unsigned long ultimoRefrescoLCD = 0;
+int lineaAActualizar = 0; // Para el refresco fraccionado
 
 void setup() {
     Serial.begin(9600);
     setupInterfaz();
     setupVisuals();
-    actualizarPantalla();
-    tiempoSiguienteCambioMicros = micros(); 
+    actualizarPantallaCompleta(); // Una vez al inicio
+    tiempoSiguienteCambioMicros = (double)micros(); 
 }
 
 void loop() {
-    unsigned long tiempoActualMicros = micros();
-    unsigned long tiempoActualMillis = millis(); // Para tareas lentas
+    unsigned long ahoraMicros = micros();
+    unsigned long ahoraMillis = millis();
     int bpm = obtenerBPM();
     bool estadoActual = estaEjecutando();
 
-    // 1. Controles (Lectura ultra rápida)
+    // 1. Prioridad 1: Controles (Lectura ultra-veloz)
     gestionarStartStop();
     gestionarBoton();
     gestionarTapTempo();
     gestionarCompas();
 
-    // 2. Gestión del Pulso con precisión de microsegundos
     if (estadoActual) {
-        // Calculamos el medio intervalo en microsegundos (30 millones / bpm)
-        unsigned long medioIntervaloMicros = 30000000UL / bpm; 
+        double medioIntervaloMicros = 30000000.0 / (double)bpm;
 
-        if (tiempoActualMicros >= tiempoSiguienteCambioMicros) {
+        // 2. Prioridad 2: El Pulso (Matemática de arrastre de error)
+        if ((double)ahoraMicros >= tiempoSiguienteCambioMicros) {
             if (!ledEncendido) {
-                // --- PUNTO CRÍTICO DE SINCRONÍA ---
                 actualizarColorLED(bpm);
-                
                 int tiemposMax = obtenerTiemposPorCompas();
-                if (contadorPulsos == 0) {
-                    tone(PIN_BUZZER, 1500, 30); // Acento
-                } else {
-                    tone(PIN_BUZZER, 1000, 20); // Normal
-                }
-                
+                if (contadorPulsos == 0) tone(PIN_BUZZER, 1500, 25); 
+                else tone(PIN_BUZZER, 1000, 15);
                 contadorPulsos = (contadorPulsos + 1) % tiemposMax;
                 ledEncendido = true;
             } else {
                 apagarLED();
                 ledEncendido = false;
             }
-            // Sincronía matemática perfecta
             tiempoSiguienteCambioMicros += medioIntervaloMicros; 
         }
 
-        // 3. Ventana de exclusión del LCD
-        // Solo permitimos LCD si faltan más de 40ms (40000us) para el próximo evento
-        long tiempoRestante = (long)tiempoSiguienteCambioMicros - (long)micros();
+        // 3. Prioridad 3: LCD Fraccionado (Solo 10ms de bloqueo por vuelta)
+        double tiempoRestante = tiempoSiguienteCambioMicros - (double)ahoraMicros;
         
-        if (tiempoRestante > 40000L) { 
+        // Con 20ms de margen es suficiente porque ahora cada línea es muy rápida
+        if (tiempoRestante > 20000.0) { 
             String compasStr = obtenerCompasActual();
-            if (bpm != ultimoBPM || compasStr != ultimoCompasStr || estadoActual != ultimoEstadoEjecucion || (tiempoActualMillis - ultimoRefrescoLCD > 400)) {
-                actualizarPantalla();
-                ultimoBPM = bpm;
-                ultimoCompasStr = compasStr;
-                ultimoEstadoEjecucion = estadoActual;
-                ultimoRefrescoLCD = tiempoActualMillis;
+            // Si algo cambia, forzamos refresco de esa línea específica
+            if (bpm != ultimoBPM || compasStr != ultimoCompasStr || estadoActual != ultimoEstadoEjecucion || (ahoraMillis - ultimoRefrescoLCD > 100)) {
+                
+                actualizarLineaLCD(lineaAActualizar); // Solo actualiza UNA línea
+                lineaAActualizar = (lineaAActualizar + 1) % 4;
+                
+                if (lineaAActualizar == 0) { // Solo resetear marcas cuando damos la vuelta completa
+                    ultimoBPM = bpm;
+                    ultimoCompasStr = compasStr;
+                    ultimoEstadoEjecucion = estadoActual;
+                    ultimoRefrescoLCD = ahoraMillis;
+                }
             }
         }
     } else {
-        // Modo Standby
+        // En STOP todo es relajado
         apagarLED();
         noTone(PIN_BUZZER);
         ledEncendido = false;
         contadorPulsos = 0;
-        if (tiempoActualMillis - ultimoRefrescoLCD > 200) {
-            actualizarPantalla();
-            ultimoRefrescoLCD = tiempoActualMillis;
+        if (ahoraMillis - ultimoRefrescoLCD > 200) {
+            actualizarPantallaCompleta();
+            ultimoRefrescoLCD = ahoraMillis;
         }
-        tiempoSiguienteCambioMicros = micros(); 
+        tiempoSiguienteCambioMicros = (double)micros(); 
     }
 }
