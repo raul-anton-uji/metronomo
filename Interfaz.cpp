@@ -51,7 +51,7 @@ void setupInterfaz() {
     lcd.backlight();
     lcd.clear();
     lcd.setCursor(0, 1);
-    lcd.print("  ATOMIC PRECISION ");
+    lcd.print("   METRONOMO PyR  ");
     delay(1000);
     lcd.clear();
 }
