@@ -23,6 +23,9 @@ const int PIN_COMPAS      = 6;
 // Pin Start/Stop 
 const int PIN_START_STOP  = 7;
 
+// Pin buzzer
+const int PIN_BUZZER = 8;
+
 // Rangos
 const int MIN_BPM = 30;
 const int MAX_BPM = 280;

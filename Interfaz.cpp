@@ -2,19 +2,23 @@
 #include "Config.h"
 #include <LiquidCrystal_I2C.h>
 
+// Inicialización del LCD (Asegúrate de que la dirección sea 0x27 o 0x3F)
 LiquidCrystal_I2C lcd(0x27, 20, 4); 
 
 volatile int bpmActual = 120;
 bool ejecutando = true;
 
+// --- Variables de Notificación ---
 String mensajeNotificacion = "";
 unsigned long tiempoNotificacion = 0;
 bool resetYaEjecutado = false; 
 
+// --- Variables Encoder ---
 const int8_t TABLA_ENCODER[] = {0, 1, -1, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, -1, 1, 0};
 static uint8_t estadoEncoder = 0;
 static int8_t contadorPasos = 0;
 
+// --- Variables Botones ---
 unsigned long tiempoInicioPulsacion = 0;
 bool pulsadoAnteriormente = false;
 bool tapAnteriorEstado = false;
@@ -24,7 +28,7 @@ bool ssPresionadoActualmente = false;
 unsigned long ultimoTap = 0;
 unsigned long tiemposTap[4] = {0, 0, 0, 0};
 int indiceTap = 0;
-int indiceCompas = 2;
+int indiceCompas = 2; // Empieza por defecto en 4/4
 const char* listaCompases[] = {"2/4", "3/4", "4/4"};
 
 void setupInterfaz() {
@@ -34,12 +38,13 @@ void setupInterfaz() {
     pinMode(PIN_TAP_TEMPO, INPUT_PULLUP);
     pinMode(PIN_COMPAS, INPUT_PULLUP);
     pinMode(PIN_START_STOP, INPUT_PULLUP);
+    pinMode(PIN_BUZZER, OUTPUT); // Pin 8 configurado para el buzzer
     
     attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_CLK), checkEncoder, CHANGE);
     attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_DT), checkEncoder, CHANGE);
 
     Wire.begin();
-    Wire.setClock(400000); // 400kHz: Crucial para que el LCD "robe" menos tiempo
+    Wire.setClock(400000); // Overclock del bus I2C para evitar jitter
     lcd.init();
     lcd.backlight();
     lcd.clear();
@@ -136,6 +141,13 @@ void gestionarCompas() {
         indiceCompas = (indiceCompas + 1) % 3;
         compasPresionadoActualmente = false;
     }
+}
+
+// Nueva función para retornar el divisor del compás para el buzzer
+int obtenerTiemposPorCompas() {
+    if (indiceCompas == 0) return 2; // 2/4
+    if (indiceCompas == 1) return 3; // 3/4
+    return 4;                        // 4/4
 }
 
 void actualizarPantalla() {
