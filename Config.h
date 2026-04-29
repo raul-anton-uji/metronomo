@@ -33,6 +33,6 @@ const int MAX_BPM = 280;
 // Configuración LCD
 const int LCD_COLS = 20;
 const int LCD_FILAS = 4;
-const int LCD_ADDR = 0x27; // Cambiar a 0x3F si no enciende
+const int LCD_ADDR = 0x27; 
 
 #endif
