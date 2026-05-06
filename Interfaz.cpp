@@ -71,7 +71,7 @@ void checkEncoder() {
     if (!ejecutando) return; // Solo responde si el metrónomo está activo
     estadoEncoder <<= 2;
     if (digitalRead(PIN_ENCODER_CLK)) estadoEncoder |= 0x02; 
-    if (digitalRead(PIN_ENCODER_DT))  estadoEncoder |= 0x01;
+    if (digitalRead(PIN_ENCODER_DT)) estadoEncoder |= 0x01;
     int8_t movimiento = TABLA_ENCODER[estadoEncoder & 0x0F]; // Decodifica el movimiento
     if (movimiento != 0) {
         contadorPasos += movimiento;
