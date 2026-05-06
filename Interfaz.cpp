@@ -164,7 +164,7 @@ void gestionarTapTempo() {
 }
 
 
-// --- Gestiona el botón de compás ---
+// --- Gestiona el botón de compás --- //
 void gestionarCompas() {
     if (!ejecutando) return; 
     bool botonC = (digitalRead(PIN_COMPAS) == LOW);
@@ -176,7 +176,7 @@ void gestionarCompas() {
 }
 
 
-// --- Devuelve la cantidad de tiempos según el compás seleccionado ---
+// --- Devuelve la cantidad de tiempos según el compás seleccionado --- //
 int obtenerTiemposPorCompas() {
     if (indiceCompas == 0) return 2; // 2/4
     if (indiceCompas == 1) return 3; // 3/4
